@@ -27,6 +27,23 @@ func (s *SourceMapper) Map(file *os.File) ([]SourceValue, error) {
 		return []SourceValue{}, err
 	}
 
+	return s.getResult(lines)
+}
+
+// Validate headers to ensure the file are supported
+func (s *SourceMapper) validateHeaders(headers []string) error {
+	definedHeaders := []string{"Date", "ID", "Amount", "Description"}
+
+	for i, header := range headers {
+		if header != definedHeaders[i] {
+			return errors.New(FILE_NOT_SUPPORTED)
+		}
+	}
+
+	return nil
+}
+
+func (s *SourceMapper) getResult(lines [][]string) ([]SourceValue, error) {
 	result := []SourceValue{}
 
 	for i, line := range lines {
@@ -53,17 +70,4 @@ func (s *SourceMapper) Map(file *os.File) ([]SourceValue, error) {
 	}
 
 	return result, nil
-}
-
-// Validate headers to ensure the file are supported
-func (s *SourceMapper) validateHeaders(headers []string) error {
-	definedHeaders := []string{"Date", "ID", "Amount", "Description"}
-
-	for i, header := range headers {
-		if header != definedHeaders[i] {
-			return errors.New(FILE_NOT_SUPPORTED)
-		}
-	}
-
-	return nil
 }

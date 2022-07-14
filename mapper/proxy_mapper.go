@@ -27,32 +27,7 @@ func (p *ProxyMapper) Map(file *os.File) ([]ProxyValue, error) {
 		return []ProxyValue{}, err
 	}
 
-	result := []ProxyValue{}
-
-	for i, line := range lines {
-		if i == 0 {
-			err := p.validateHeaders(line)
-
-			if err != nil {
-				return result, err
-			}
-
-			continue
-		}
-
-		date, _ := time.Parse("2006-01-02", line[2])
-
-		valueMapper := ProxyValue{
-			ID:          line[3],
-			Amount:      line[0],
-			Description: line[1],
-			Date:        date,
-		}
-
-		result = append(result, valueMapper)
-	}
-
-	return result, nil
+	return p.getResult(lines)
 }
 
 // Validate headers to ensure the file are supported
@@ -66,4 +41,37 @@ func (p *ProxyMapper) validateHeaders(headers []string) error {
 	}
 
 	return nil
+}
+
+func (p *ProxyMapper) getResult(lines [][]string) ([]ProxyValue, error) {
+	result := []ProxyValue{}
+
+	for i, line := range lines {
+		if i == 0 {
+			err := p.validateHeaders(line)
+
+			if err != nil {
+				return []ProxyValue{}, err
+			}
+
+			continue
+		}
+
+		date, err := time.Parse("2006-01-02", line[2])
+
+		if err != nil {
+			return []ProxyValue{}, err
+		}
+
+		value := ProxyValue{
+			ID:          line[3],
+			Amount:      line[0],
+			Description: line[1],
+			Date:        date,
+		}
+
+		result = append(result, value)
+	}
+
+	return result, nil
 }
