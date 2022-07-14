@@ -52,8 +52,6 @@ func ProcessSummary(sourcepath string, proxypath string, destinationpath string)
 		}
 	}
 
-	fmt.Printf("Successfully generate %s", filename)
-
 	file.Close()
 
 	return nil

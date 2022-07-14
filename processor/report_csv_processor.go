@@ -33,8 +33,6 @@ func ProcessCSV(sourcepath string, proxypath string, destinationpath string) err
 		_ = writer.Write(value)
 	}
 
-	fmt.Printf("Successfully generate %s", filename)
-
 	writer.Flush()
 	file.Close()
 
