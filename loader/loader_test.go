@@ -2,17 +2,19 @@ package loader
 
 import "testing"
 
-const (
-	source_path = "../source/proxy.csv"
-)
-
-func TestLoadFile(t *testing.T) {
-	loader := Loader{}
-	file, err := loader.Load(source_path)
+func TestSuccessLoadFile(t *testing.T) {
+	_, err := NewLoader().Load("../source_test/valid_proxy_test.csv")
 
 	if err != nil {
 		t.Errorf(err.Error())
 	}
+}
 
-	file.Close()
+func TestFailedLoadFile(t *testing.T) {
+	_, err := NewLoader().Load("../really_random_path.csv")
+	expectation := FILE_NOT_FOUND
+
+	if err.Error() != expectation {
+		t.Errorf("Expected erorr %v but got %v", expectation, err.Error())
+	}
 }
