@@ -2,7 +2,6 @@ package processor
 
 import (
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/AdiPP/recon-general/loader"
@@ -14,31 +13,37 @@ type Result struct {
 	Amount      string
 	Description string
 	Date        time.Time
-	Remarks     []string
+	SourceFound bool
+	Remarks     []Remark
 }
 
-func Process(sourcepath string, proxypath string) []Result {
+type Remark struct {
+	Type    string
+	Message string
+}
+
+func Process(sourcepath string, proxypath string) ([]Result, error) {
 	results := []Result{}
 	sourceData, err := getSourceData(sourcepath)
 
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return results, err
 	}
 
 	proxyData, err := getProxyData(proxypath)
 
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return results, err
 	}
 
 	for _, proxyValue := range proxyData {
 		sourceValue := mapper.SourceValue{}
+		sourceFound := false
 
 		for _, value := range sourceData {
 			if value.ID == proxyValue.ID {
 				sourceValue = value
+				sourceFound = true
 				break
 			}
 		}
@@ -48,11 +53,12 @@ func Process(sourcepath string, proxypath string) []Result {
 			Amount:      proxyValue.Amount,
 			Description: proxyValue.Description,
 			Date:        proxyValue.Date,
-			Remarks:     getRemarks(proxyValue, sourceValue),
+			SourceFound: sourceFound,
+			Remarks:     getRemarks(sourceFound, proxyValue, sourceValue),
 		})
 	}
 
-	return results
+	return results, nil
 }
 
 func getSourceData(filepath string) ([]mapper.SourceValue, error) {
@@ -93,25 +99,40 @@ func getProxyData(filepath string) ([]mapper.ProxyValue, error) {
 	return result, nil
 }
 
-func getRemarks(proxyValue mapper.ProxyValue, sourceValue mapper.SourceValue) []string {
-	remarks := make([]string, 0)
+func getRemarks(sourceFound bool, proxyValue mapper.ProxyValue, sourceValue mapper.SourceValue) []Remark {
+	remarks := make([]Remark, 0)
 
-	if sourceValue.ID == "" {
-		remarks = append(remarks, "Data not found on source")
+	if !sourceFound {
+		remarks = append(remarks, Remark{
+			Type:    "DATA_NOT_FOUND",
+			Message: DATA_NOT_FOUND,
+		})
 
 		return remarks
 	}
 
 	if sourceValue.Amount != proxyValue.Amount {
-		remarks = append(remarks, "Different amount with source data")
+		remarks = append(remarks, Remark{
+			Type:    "DIFFERENT_AMOUNT",
+			Message: fmt.Sprintf(DIFFERENT_AMOUNT, proxyValue.Amount, sourceValue.Amount),
+		})
 	}
 
 	if sourceValue.Description != proxyValue.Description {
-		remarks = append(remarks, "Different description with source data")
+		remarks = append(remarks, Remark{
+			Type:    "DIFFERENT_DESCRIPTION",
+			Message: fmt.Sprintf(DIFFERENT_DESCRIPTION, proxyValue.Description, sourceValue.Description),
+		})
 	}
 
-	if sourceValue.Date.Format("2006-01-02") != proxyValue.Date.Format("2006-01-02") {
-		remarks = append(remarks, "Different date with source data")
+	sourceDate := sourceValue.Date.Format("2006-01-02")
+	proxyDate := proxyValue.Date.Format("2006-01-02")
+
+	if sourceDate != proxyDate {
+		remarks = append(remarks, Remark{
+			Type:    "DIFFERENT_DATE",
+			Message: fmt.Sprintf(DIFFERENT_DATE, proxyDate, sourceDate),
+		})
 	}
 
 	return remarks

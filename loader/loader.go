@@ -18,7 +18,5 @@ func (l *Loader) Load(filepath string) (*os.File, error) {
 		return file, errors.New(FILE_NOT_FOUND)
 	}
 
-	defer file.Close()
-
 	return file, nil
 }

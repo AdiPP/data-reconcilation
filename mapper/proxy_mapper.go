@@ -40,7 +40,7 @@ func (p *ProxyMapper) Map(file *os.File) ([]ProxyValue, error) {
 			continue
 		}
 
-		date, _ := time.Parse(layoutISO, line[2])
+		date, _ := time.Parse("2006-01-02", line[2])
 
 		valueMapper := ProxyValue{
 			ID:          line[3],

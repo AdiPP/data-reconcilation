@@ -8,24 +8,26 @@ import (
 	"time"
 )
 
-func ProcessCSV(sourcepath string, proxypath string) {
-	results := Process(sourcepath, proxypath)
-	filename := fmt.Sprintf(
-		"report_%s%s.csv",
-		time.Now().Format("20060102"),
-		time.Now().Format("150405"),
-	)
-	filepath := fmt.Sprintf("../result_test/%s", filename)
+func ProcessCSV(sourcepath string, proxypath string, destinationpath string) error {
+	results, err := Process(sourcepath, proxypath)
+
+	if err != nil {
+		return err
+	}
+
+	filename := generateCSVReportFilename()
+	filepath := fmt.Sprintf(destinationpath+"/%s", filename)
 	file, err := os.Create(filepath)
 
 	if err != nil {
 		fmt.Println(err)
+		os.Exit(1)
 	}
 
 	defer file.Close()
 
 	writer := csv.NewWriter(file)
-	values := generateCSVRecord(results)
+	values := getCSVValue(results)
 
 	for _, value := range values {
 		_ = writer.Write(value)
@@ -35,9 +37,21 @@ func ProcessCSV(sourcepath string, proxypath string) {
 
 	writer.Flush()
 	file.Close()
+
+	return nil
 }
 
-func generateCSVRecord(results []Result) [][]string {
+func generateCSVReportFilename() string {
+	now := time.Now()
+
+	return fmt.Sprintf(
+		"report_%s%s.csv",
+		now.Format("20060102"),
+		now.Format("150405"),
+	)
+}
+
+func getCSVValue(results []Result) [][]string {
 	headers := []string{"ID", "Amount", "Description", "Date", "Remarks"}
 	data := [][]string{headers}
 
@@ -47,9 +61,19 @@ func generateCSVRecord(results []Result) [][]string {
 			value.Amount,
 			value.Description,
 			value.Date.Format("2006-01-02"),
-			strings.Join(value.Remarks, ","),
+			convertRemarksToCSVValue(value.Remarks),
 		})
 	}
 
 	return data
+}
+
+func convertRemarksToCSVValue(remarks []Remark) string {
+	messages := make([]string, 0)
+
+	for _, value := range remarks {
+		messages = append(messages, value.Message)
+	}
+
+	return strings.Join(messages, ",")
 }

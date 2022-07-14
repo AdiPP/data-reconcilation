@@ -40,7 +40,7 @@ func (s *SourceMapper) Map(file *os.File) ([]SourceValue, error) {
 			continue
 		}
 
-		date, _ := time.Parse(layoutISO, line[0])
+		date, _ := time.Parse("2006-01-02", line[0])
 
 		valueMapper := SourceValue{
 			ID:          line[1],
