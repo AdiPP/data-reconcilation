@@ -17,11 +17,3 @@ func TestProcessReport(t *testing.T) {
 		t.Errorf("Expected %v but got %v", expectation, actual)
 	}
 }
-
-func TestProcessCSV(t *testing.T) {
-	ProcessCSV(source_path, proxy_path)
-}
-
-func TestProcessSummaryReport(t *testing.T) {
-	ProcessSummary(source_path, proxy_path)
-}

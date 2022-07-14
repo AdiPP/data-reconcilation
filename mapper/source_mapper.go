@@ -2,6 +2,7 @@ package mapper
 
 import (
 	"encoding/csv"
+	"errors"
 	"os"
 	"time"
 )
@@ -26,24 +27,43 @@ func (s *SourceMapper) Map(file *os.File) ([]SourceValue, error) {
 		return []SourceValue{}, err
 	}
 
-	// Todo-Adi: Add format validationLoader
-
 	result := []SourceValue{}
 
 	for i, line := range lines {
-		if i != 0 {
-			date, _ := time.Parse(layoutISO, line[0])
+		if i == 0 {
+			err := s.validateHeaders(line)
 
-			valueMapper := SourceValue{
-				ID:          line[1],
-				Amount:      line[2],
-				Description: line[3],
-				Date:        date,
+			if err != nil {
+				return result, err
 			}
 
-			result = append(result, valueMapper)
+			continue
 		}
+
+		date, _ := time.Parse(layoutISO, line[0])
+
+		valueMapper := SourceValue{
+			ID:          line[1],
+			Amount:      line[2],
+			Description: line[3],
+			Date:        date,
+		}
+
+		result = append(result, valueMapper)
 	}
 
 	return result, nil
+}
+
+// Validate headers to ensure the file are supported
+func (s *SourceMapper) validateHeaders(headers []string) error {
+	definedHeaders := []string{"Date", "ID", "Amount", "Description"}
+
+	for i, header := range headers {
+		if header != definedHeaders[i] {
+			return errors.New(FILE_NOT_SUPPORTED)
+		}
+	}
+
+	return nil
 }
