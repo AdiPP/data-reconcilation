@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/AdiPP/reconciliation/pkg/storage/memory"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -22,37 +21,20 @@ type mockStorage struct {
 	sources []Source
 }
 
-func (m *mockStorage) FindAllProxies() ([]memory.Proxy, error) {
-	proxies := []memory.Proxy{}
-
-	for _, pp := range m.proxies {
-		p := memory.Proxy{
-			ID:     pp.ID,
-			Amount: pp.Amount,
-			Desc:   pp.Desc,
-			Date:   pp.Date,
-		}
-		proxies = append(proxies, p)
-	}
-
-	return proxies, nil
+func (m *mockStorage) FindAllProxies() ([]Proxy, error) {
+	return m.proxies, nil
 }
 
-func (m *mockStorage) FindSourceByID(ID string) (memory.Source, error) {
-	var source memory.Source
+func (m *mockStorage) FindSourceByID(ID string) (Source, error) {
+	var source Source
 
 	for _, ss := range m.sources {
 		if ss.ID == ID {
-			return memory.Source{
-				ID:     ss.ID,
-				Amount: ss.Amount,
-				Desc:   ss.Desc,
-				Date:   ss.Date,
-			}, nil
+			return ss, nil
 		}
 	}
 
-	return source, memory.ErrSourceNotFound
+	return source, ErrSourceNotFound
 }
 
 func newMockStorage() *mockStorage {

@@ -2,8 +2,6 @@ package listing
 
 import (
 	"errors"
-
-	"github.com/AdiPP/reconciliation/pkg/storage/memory"
 )
 
 var (
@@ -11,8 +9,8 @@ var (
 )
 
 type Repository interface {
-	FindAllProxies() ([]memory.Proxy, error)
-	FindSourceByID(ID string) (memory.Source, error)
+	FindAllProxies() ([]Proxy, error)
+	FindSourceByID(ID string) (Source, error)
 }
 
 type Service interface {
@@ -29,24 +27,10 @@ func NewService(r Repository) Service {
 }
 
 func (s *service) FindAllProxies() ([]Proxy, error) {
-	storageProxies, err := s.r.FindAllProxies()
+	proxies, err := s.r.FindAllProxies()
 
 	if err != nil {
 		return nil, err
-	}
-
-	var proxies []Proxy
-
-	for _, v := range storageProxies {
-		proxies = append(
-			proxies,
-			Proxy{
-				ID:     v.ID,
-				Amount: v.Amount,
-				Desc:   v.Desc,
-				Date:   v.Date,
-			},
-		)
 	}
 
 	return proxies, nil

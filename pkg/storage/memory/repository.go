@@ -6,10 +6,11 @@ import (
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/AdiPP/reconciliation/pkg/listing"
 )
 
 var (
-	ErrSourceNotFound        = errors.New("source not found")
 	ErrUnsupportedFileHeader = errors.New("unsupported file header")
 )
 
@@ -70,20 +71,39 @@ func (s *Storage) FindAllSources() ([]Source, error) {
 	return s.sources, nil
 }
 
-func (s *Storage) FindSourceByID(ID string) (Source, error) {
-	var source Source
+func (s *Storage) FindSourceByID(ID string) (listing.Source, error) {
+	var source listing.Source
 
-	for _, v := range s.sources {
-		if v.ID == ID {
-			return v, nil
+	for _, ss := range s.sources {
+		if ss.ID == ID {
+			return listing.Source{
+				ID:     ss.ID,
+				Amount: ss.Amount,
+				Desc:   ss.Desc,
+				Date:   ss.Date,
+			}, nil
 		}
 	}
 
-	return source, ErrSourceNotFound
+	return source, listing.ErrSourceNotFound
 }
 
-func (s *Storage) FindAllProxies() ([]Proxy, error) {
-	return s.proxies, nil
+func (s *Storage) FindAllProxies() ([]listing.Proxy, error) {
+	var proxies []listing.Proxy
+
+	for _, pp := range s.proxies {
+		proxies = append(
+			proxies,
+			listing.Proxy{
+				ID:     pp.ID,
+				Amount: pp.Amount,
+				Desc:   pp.Desc,
+				Date:   pp.Date,
+			},
+		)
+	}
+
+	return proxies, nil
 }
 
 func getRecords(path string) ([][]string, error) {

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/AdiPP/reconciliation/pkg/storage/memory"
+	"github.com/AdiPP/reconciliation/pkg/listing"
 )
 
 const (
@@ -32,8 +32,8 @@ type ReportOption struct {
 }
 
 type Repository interface {
-	FindAllProxies() ([]memory.Proxy, error)
-	FindSourceByID(ID string) (memory.Source, error)
+	FindAllProxies() ([]listing.Proxy, error)
+	FindSourceByID(ID string) (listing.Source, error)
 }
 
 type Service interface {
@@ -99,7 +99,7 @@ func (s *service) GetReportData(reportOpt ReportOption) ([]Report, error) {
 		source, err := s.FindSourceByID(v.ID)
 
 		if err != nil {
-			if err != memory.ErrSourceNotFound {
+			if err != listing.ErrSourceNotFound {
 				return nil, err
 			}
 		}
