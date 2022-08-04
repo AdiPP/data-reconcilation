@@ -11,6 +11,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var (
+	ErrProxypathRequired       = errors.New("proxypath is required")
+	ErrSourcepathRequired      = errors.New("sourcepath is required")
+	ErrDestinationpathRequired = errors.New("destionationpath is required")
+)
+
 var rootCmd = &cobra.Command{
 	Use:   "reconciliation",
 	Short: "",
@@ -139,15 +145,15 @@ func convertDateStringToDate(dateString string) (time.Time, error) {
 
 func validateArguments(proxypath string, sourcepath string, destionationpath string) error {
 	if proxypath == "" {
-		return errors.New("proxypath is required")
+		return ErrProxypathRequired
 	}
 
 	if sourcepath == "" {
-		return errors.New("sourcepath is required")
+		return ErrSourcepathRequired
 	}
 
 	if destionationpath == "" {
-		return errors.New("destionationpath is required")
+		return ErrDestinationpathRequired
 	}
 
 	return nil

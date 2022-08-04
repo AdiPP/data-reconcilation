@@ -10,6 +10,11 @@ import (
 	"github.com/AdiPP/reconciliation/pkg/exporting"
 )
 
+var (
+	ErrUnsupportedFileHeader = errors.New("unsupported file header")
+	ErrSourceNotFound        = errors.New("source not found")
+)
+
 type Storage struct {
 	proxies []Proxy
 	sources []Source
@@ -81,7 +86,7 @@ func (s *Storage) FindSourceByID(ID string) (exporting.Source, error) {
 		}
 	}
 
-	return source, errors.New("source not found")
+	return source, ErrSourceNotFound
 }
 
 func (s *Storage) FindAllProxies() ([]exporting.Proxy, error) {
@@ -200,7 +205,7 @@ func validateFileHeader(fileHeaders []string, definedHeaders []string) error {
 
 	for i, v := range fileHeaders {
 		if v != definedHeaders[i] {
-			return errors.New("unsupported file header")
+			return ErrUnsupportedFileHeader
 		}
 	}
 
