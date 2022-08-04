@@ -8,7 +8,7 @@ import (
 )
 
 func ReconcileHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	reports, err := Reconcile()
+	reports, err := Reconcile(ReconcileOption{})
 
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -20,7 +20,7 @@ func ReconcileHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Param
 }
 
 func ReconcileCSVHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	fileBytes, err := ReconcileCSVFileByte()
+	fileBytes, err := ReconcileReportFileByte(ReconcileOption{})
 
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -33,7 +33,7 @@ func ReconcileCSVHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Pa
 }
 
 func ReconcileSummaryHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	fileBytes, err := ReconcileSummaryFileByte()
+	fileBytes, err := ReconcileReportSummaryFileByte(ReconcileOption{})
 
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)

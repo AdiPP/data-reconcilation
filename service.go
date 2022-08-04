@@ -6,10 +6,16 @@ import (
 	"io/ioutil"
 	"os"
 	"strings"
+	"time"
 )
 
-func Reconcile() ([]Report, error) {
-	proxies, err := db.FindAllProxies()
+type ReconcileOption struct {
+	StartDate time.Time
+	EndDate   time.Time
+}
+
+func Reconcile(opt ReconcileOption) ([]Report, error) {
+	proxies, err := getFilteredProxies(opt)
 
 	if err != nil {
 		return nil, err
@@ -17,25 +23,27 @@ func Reconcile() ([]Report, error) {
 
 	var reports []Report
 
-	for _, proxy := range proxies {
-		source, err := db.FindSourceByID(proxy.ID)
+	for _, v := range proxies {
+		source, err := db.FindSourceByID(v.ID)
 
 		if err != nil {
 			source = Source{}
 		}
 
 		reports = append(reports, Report{
-			Proxy:   proxy,
+			Proxy:   v,
 			Source:  source,
-			Remarks: getRemarks(proxy, source),
+			Remarks: getRemarks(v, source),
 		})
 	}
 
 	return reports, nil
 }
 
-func ReconcileCSVFile(destinationdir string) error {
-	reports, err := Reconcile()
+func ReconcileReportFile(opt ReconcileOption, destinationdir string) error {
+	var err error
+
+	reports, err := Reconcile(opt)
 
 	if err != nil {
 		return err
@@ -54,31 +62,27 @@ func ReconcileCSVFile(destinationdir string) error {
 
 	defer writer.Flush()
 
-	CSVReport := NewCSVReport(reports)
-
-	if err := writer.Write(CSVReport.Headers); err != nil {
-		return err
-	}
-
-	if err := writer.WriteAll(CSVReport.Values); err != nil {
-		return err
-	}
-
-	dst, err := os.Create(destinationdir + "report.csv")
+	err = writeReconcileReportFile(writer, reports)
 
 	if err != nil {
 		return err
 	}
 
-	defer dst.Close()
-
-	input, err := ioutil.ReadFile(tmpFile.Name())
+	now := time.Now()
+	filename := fmt.Sprintf(
+		"reconciliation-report-%s%s.csv",
+		now.Format("20060102"),
+		now.Format("150405"),
+	)
+	dstFile, err := os.Create(destinationdir + filename)
 
 	if err != nil {
 		return err
 	}
 
-	err = ioutil.WriteFile(dst.Name(), input, 0644)
+	defer dstFile.Close()
+
+	err = copyTempFileToDestinationFile(tmpFile, dstFile)
 
 	if err != nil {
 		return err
@@ -87,9 +91,11 @@ func ReconcileCSVFile(destinationdir string) error {
 	return nil
 }
 
-func ReconcileCSVFileByte() ([]byte, error) {
+func ReconcileReportFileByte(opt ReconcileOption) ([]byte, error) {
 	var fileBytes []byte
-	reports, err := Reconcile()
+	var err error
+
+	reports, err := Reconcile(opt)
 
 	if err != nil {
 		return nil, err
@@ -108,13 +114,9 @@ func ReconcileCSVFileByte() ([]byte, error) {
 
 	defer writer.Flush()
 
-	CSVReport := NewCSVReport(reports)
+	err = writeReconcileReportFile(writer, reports)
 
-	if err := writer.Write(CSVReport.Headers); err != nil {
-		return nil, err
-	}
-
-	if err := writer.WriteAll(CSVReport.Values); err != nil {
+	if err != nil {
 		return nil, err
 	}
 
@@ -127,8 +129,8 @@ func ReconcileCSVFileByte() ([]byte, error) {
 	return fileBytes, nil
 }
 
-func ReconcileSummaryFile(destinationdir string) error {
-	reports, err := Reconcile()
+func ReconcileReportSummaryFile(opt ReconcileOption, destinationdir string) error {
+	reports, err := Reconcile(opt)
 
 	if err != nil {
 		return err
@@ -143,44 +145,27 @@ func ReconcileSummaryFile(destinationdir string) error {
 	defer tmpFile.Close()
 	defer os.Remove(tmpFile.Name())
 
-	summaryReport := NewSummaryReport(reports)
-
-	for _, v := range summaryReport.Headers {
-		_, err := tmpFile.WriteString(fmt.Sprintf("%s \n", strings.Join(v, " ")))
-
-		if err != nil {
-			return err
-		}
-	}
-
-	tmpFile.WriteString("\n")
-	tmpFile.WriteString("DISCREPANCIES \n")
-	tmpFile.WriteString("============== \n")
-	tmpFile.WriteString(fmt.Sprintf("%s \n", strings.Join(summaryReport.DiscrepanciesHeaders, " | ")))
-
-	for _, v := range summaryReport.DiscrepanciesValues {
-		_, err := tmpFile.WriteString(fmt.Sprintf("%s \n", strings.Join(v, " | ")))
-
-		if err != nil {
-			return err
-		}
-	}
-
-	dst, err := os.Create(destinationdir + "summary.txt")
+	err = writeReconcileSummaryFile(tmpFile, reports)
 
 	if err != nil {
 		return err
 	}
 
-	defer dst.Close()
-
-	input, err := ioutil.ReadFile(tmpFile.Name())
+	now := time.Now()
+	filename := fmt.Sprintf(
+		"reconciliation-report-summary-%s%s.txt",
+		now.Format("20060102"),
+		now.Format("150405"),
+	)
+	dstFile, err := os.Create(destinationdir + filename)
 
 	if err != nil {
 		return err
 	}
 
-	err = ioutil.WriteFile(dst.Name(), input, 0644)
+	defer dstFile.Close()
+
+	err = copyTempFileToDestinationFile(tmpFile, dstFile)
 
 	if err != nil {
 		return err
@@ -189,9 +174,9 @@ func ReconcileSummaryFile(destinationdir string) error {
 	return nil
 }
 
-func ReconcileSummaryFileByte() ([]byte, error) {
+func ReconcileReportSummaryFileByte(opt ReconcileOption) ([]byte, error) {
 	var fileBytes []byte
-	reports, err := Reconcile()
+	reports, err := Reconcile(opt)
 
 	if err != nil {
 		return nil, err
@@ -206,27 +191,10 @@ func ReconcileSummaryFileByte() ([]byte, error) {
 	defer tmpFile.Close()
 	defer os.Remove(tmpFile.Name())
 
-	summaryReport := NewSummaryReport(reports)
+	err = writeReconcileSummaryFile(tmpFile, reports)
 
-	for _, v := range summaryReport.Headers {
-		_, err := tmpFile.WriteString(fmt.Sprintf("%s \n", strings.Join(v, " ")))
-
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	tmpFile.WriteString("\n")
-	tmpFile.WriteString("DISCREPANCIES \n")
-	tmpFile.WriteString("============== \n")
-	tmpFile.WriteString(fmt.Sprintf("%s \n", strings.Join(summaryReport.DiscrepanciesHeaders, " | ")))
-
-	for _, v := range summaryReport.DiscrepanciesValues {
-		_, err := tmpFile.WriteString(fmt.Sprintf("%s \n", strings.Join(v, " | ")))
-
-		if err != nil {
-			return nil, err
-		}
+	if err != nil {
+		return nil, err
 	}
 
 	fileBytes, err = ioutil.ReadFile(tmpFile.Name())
@@ -236,6 +204,28 @@ func ReconcileSummaryFileByte() ([]byte, error) {
 	}
 
 	return fileBytes, nil
+}
+
+func getFilteredProxies(opt ReconcileOption) ([]Proxy, error) {
+	proxies, err := db.FindAllProxies()
+
+	if err != nil {
+		return nil, err
+	}
+
+	if !opt.StartDate.IsZero() || !opt.EndDate.IsZero() {
+		var filteredProxies []Proxy
+
+		for _, v := range proxies {
+			if v.Date == opt.StartDate || v.Date == opt.EndDate || (v.Date.After(opt.StartDate) && v.Date.Before(opt.EndDate)) {
+				filteredProxies = append(filteredProxies, v)
+			}
+		}
+
+		return filteredProxies, nil
+	}
+
+	return proxies, nil
 }
 
 func getRemarks(proxy Proxy, source Source) Remark {
@@ -262,4 +252,61 @@ func getRemarks(proxy Proxy, source Source) Remark {
 	}
 
 	return remark
+}
+
+func writeReconcileReportFile(writer *csv.Writer, reports []Report) error {
+	CSVReport := NewCSVReport(reports)
+
+	if err := writer.Write(CSVReport.Headers); err != nil {
+		return err
+	}
+
+	if err := writer.WriteAll(CSVReport.Values); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func writeReconcileSummaryFile(tmpFile *os.File, reports []Report) error {
+	summaryReport := NewSummaryReport(reports)
+
+	for _, v := range summaryReport.Headers {
+		_, err := tmpFile.WriteString(fmt.Sprintf("%s \n", strings.Join(v, " ")))
+
+		if err != nil {
+			return err
+		}
+	}
+
+	tmpFile.WriteString("\n")
+	tmpFile.WriteString("DISCREPANCIES \n")
+	tmpFile.WriteString("============== \n")
+	tmpFile.WriteString(fmt.Sprintf("%s \n", strings.Join(summaryReport.DiscrepanciesHeaders, " | ")))
+
+	for _, v := range summaryReport.DiscrepanciesValues {
+		_, err := tmpFile.WriteString(fmt.Sprintf("%s \n", strings.Join(v, " | ")))
+
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func copyTempFileToDestinationFile(tmpFile *os.File, dstFile *os.File) error {
+	input, err := ioutil.ReadFile(tmpFile.Name())
+
+	if err != nil {
+		return err
+	}
+
+	err = ioutil.WriteFile(dstFile.Name(), input, 0644)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

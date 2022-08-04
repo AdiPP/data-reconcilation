@@ -3,27 +3,34 @@ package main
 import (
 	"errors"
 	"fmt"
-	"log"
+	"time"
 
 	"github.com/spf13/cobra"
 )
 
 var reconcileCmd = &cobra.Command{
-	Use:   "reconcile {proxyfilepath} {sourcefilepath} {destinationdir}",
+	Use:   "reconcile {proxyfilepath} {sourcefilepath} {destinationdir} {startdate} {enddate}",
 	Short: "Reconcile proxy file and source file",
 	Long:  `Reconcile and generate reconciliation report from proxy file and source file.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		proxyfilepath := ""
-		sourcefilepath := ""
-		destinationdir := ""
+		var proxyfilepath string
+		var sourcefilepath string
+		var destinationdir string
+		var startdatestring string
+		var enddatestring string
 
-		for i, arg := range args {
-			if i == 0 {
-				proxyfilepath = arg
-			} else if i == 1 {
-				sourcefilepath = arg
-			} else if i == 2 {
-				destinationdir = arg
+		for i, v := range args {
+			switch i {
+			case 0:
+				proxyfilepath = v
+			case 1:
+				sourcefilepath = v
+			case 2:
+				destinationdir = v
+			case 3:
+				startdatestring = v
+			case 4:
+				enddatestring = v
 			}
 		}
 
@@ -39,16 +46,22 @@ var reconcileCmd = &cobra.Command{
 		)
 
 		if err != nil {
-			log.Fatal(err)
+			panic(err.Error())
 		}
 
-		err = ReconcileCSVFile(destinationdir)
+		reconOpt, err := getReconcileOption(startdatestring, enddatestring)
 
 		if err != nil {
 			panic(err.Error())
 		}
 
-		err = ReconcileSummaryFile(destinationdir)
+		err = ReconcileReportFile(reconOpt, destinationdir)
+
+		if err != nil {
+			panic(err.Error())
+		}
+
+		err = ReconcileReportSummaryFile(reconOpt, destinationdir)
 
 		if err != nil {
 			panic(err.Error())
@@ -60,6 +73,46 @@ var reconcileCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(reconcileCmd)
+}
+
+func getReconcileOption(startdatestring string, enddatestring string) (ReconcileOption, error) {
+	var startdate time.Time
+	var enddate time.Time
+
+	if startdatestring != "" {
+		date, err := convertDateStringToDate(startdatestring)
+
+		if err != nil {
+			return ReconcileOption{}, err
+		}
+
+		startdate = date
+	}
+
+	if enddatestring != "" {
+		date, err := convertDateStringToDate(enddatestring)
+
+		if err != nil {
+			return ReconcileOption{}, err
+		}
+
+		enddate = date
+	}
+
+	return ReconcileOption{
+		StartDate: startdate,
+		EndDate:   enddate,
+	}, nil
+}
+
+func convertDateStringToDate(dateString string) (time.Time, error) {
+	date, err := time.Parse("2006-01-02", dateString)
+
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	return date, nil
 }
 
 func validateArguments(proxypath string, sourcepath string, destionationpath string) error {
