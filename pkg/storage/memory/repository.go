@@ -6,13 +6,11 @@ import (
 	"os"
 	"strconv"
 	"time"
-
-	"github.com/AdiPP/reconciliation/pkg/exporting"
 )
 
 var (
-	ErrUnsupportedFileHeader = errors.New("unsupported file header")
 	ErrSourceNotFound        = errors.New("source not found")
+	ErrUnsupportedFileHeader = errors.New("unsupported file header")
 )
 
 type Storage struct {
@@ -72,38 +70,20 @@ func (s *Storage) FindAllSources() ([]Source, error) {
 	return s.sources, nil
 }
 
-func (s *Storage) FindSourceByID(ID string) (exporting.Source, error) {
-	var source exporting.Source
+func (s *Storage) FindSourceByID(ID string) (Source, error) {
+	var source Source
 
 	for _, v := range s.sources {
 		if v.ID == ID {
-			source.ID = v.ID
-			source.Amount = v.Amount
-			source.Desc = v.Desc
-			source.Date = v.Date
-
-			return source, nil
+			return v, nil
 		}
 	}
 
 	return source, ErrSourceNotFound
 }
 
-func (s *Storage) FindAllProxies() ([]exporting.Proxy, error) {
-	var proxies []exporting.Proxy
-
-	for _, v := range s.proxies {
-		proxy := exporting.Proxy{
-			ID:     v.ID,
-			Amount: v.Amount,
-			Desc:   v.Desc,
-			Date:   v.Date,
-		}
-
-		proxies = append(proxies, proxy)
-	}
-
-	return proxies, nil
+func (s *Storage) FindAllProxies() ([]Proxy, error) {
+	return s.proxies, nil
 }
 
 func getRecords(path string) ([][]string, error) {

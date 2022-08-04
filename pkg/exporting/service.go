@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/AdiPP/reconciliation/pkg/storage/memory"
 )
 
 const (
@@ -30,11 +32,12 @@ type ReportOption struct {
 }
 
 type Repository interface {
-	FindAllProxies() ([]Proxy, error)
-	FindSourceByID(ID string) (Source, error)
+	FindAllProxies() ([]memory.Proxy, error)
+	FindSourceByID(ID string) (memory.Source, error)
 }
 
 type Service interface {
+	FindSourceByID(ID string) (Source, error)
 	GetReportData(reportOpt ReportOption) ([]Report, error)
 	GenerateReportFile(reportOpt ReportOption, dstDir string) error
 	GenerateSummaryReportFile(reportOpt ReportOption, dstDir string) error
@@ -50,10 +53,41 @@ func NewService(r Repository) Service {
 	return &service{r}
 }
 
+func (s *service) FindSourceByID(ID string) (Source, error) {
+	var source Source
+
+	storageSource, err := s.r.FindSourceByID(ID)
+
+	if err != nil {
+		return source, err
+	}
+
+	return Source{
+		ID:     storageSource.ID,
+		Amount: storageSource.Amount,
+		Desc:   storageSource.Desc,
+		Date:   storageSource.Date,
+	}, nil
+}
+
 func (s *service) GetReportData(reportOpt ReportOption) ([]Report, error) {
-	proxies, err := s.r.FindAllProxies()
+	storageProxies, err := s.r.FindAllProxies()
+
 	if err != nil {
 		return nil, err
+	}
+
+	var proxies []Proxy
+
+	for _, v := range storageProxies {
+		proxies = append(
+			proxies, Proxy{
+				ID:     v.ID,
+				Amount: v.Amount,
+				Desc:   v.Desc,
+				Date:   v.Date,
+			},
+		)
 	}
 
 	filteredProxies := getFilteredProxies(reportOpt, proxies)
@@ -62,10 +96,12 @@ func (s *service) GetReportData(reportOpt ReportOption) ([]Report, error) {
 	var reports []Report
 
 	for _, v := range sortedProxies {
-		source, err := s.r.FindSourceByID(v.ID)
+		source, err := s.FindSourceByID(v.ID)
 
 		if err != nil {
-			source = Source{}
+			if err != memory.ErrSourceNotFound {
+				return nil, err
+			}
 		}
 
 		reports = append(reports, Report{
