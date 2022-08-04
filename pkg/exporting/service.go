@@ -5,11 +5,24 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"sort"
 	"strings"
 	"time"
 )
 
-// Todo-Adi: Add errors const
+const (
+	TypeProxyNotFound   = "PROXY_NOT_FOUND"
+	TypeDiffProxyAmount = "DIFFERENT_PROXY_AMOUNT"
+	TypeDiffProxyDesc   = "DIFFERENT_PROXY_DESCRIPTION"
+	TypeDiffProxyDate   = "DIFFERENT_PROXY_DATE"
+)
+
+var (
+	ProxyNotFound   = "proxy data not found on source data"
+	DiffProxyAmount = "proxy amount (%v) is different from source amount (%v)"
+	DiffProxyDesc   = "proxy description (%s) is different from source description (%s)"
+	DiffProxyDate   = "proxy date (%s) is different from source date (%s)"
+)
 
 type ReportOption struct {
 	StartDate time.Time
@@ -26,7 +39,7 @@ type Service interface {
 	GenerateReportFile(reportOpt ReportOption, dstDir string) error
 	GenerateSummaryReportFile(reportOpt ReportOption, dstDir string) error
 	WriteReportFile(writer *csv.Writer, reports []Report) error
-	WriteSummaryReportFile(tmpFile *os.File, reports []Report) error
+	WriteSummaryReportFile(reportOpt ReportOption, tmpFile *os.File, reports []Report) error
 }
 
 type service struct {
@@ -44,10 +57,11 @@ func (s *service) GetReportData(reportOpt ReportOption) ([]Report, error) {
 	}
 
 	filteredProxies := getFilteredProxies(reportOpt, proxies)
+	sortedProxies := getSorteredProxies(filteredProxies)
 
 	var reports []Report
 
-	for _, v := range filteredProxies {
+	for _, v := range sortedProxies {
 		source, err := s.r.FindSourceByID(v.ID)
 
 		if err != nil {
@@ -129,7 +143,7 @@ func (s *service) GenerateSummaryReportFile(reportOpt ReportOption, dstDir strin
 	defer tmpFile.Close()
 	defer os.Remove(tmpFile.Name())
 
-	err = s.WriteSummaryReportFile(tmpFile, reports)
+	err = s.WriteSummaryReportFile(reportOpt, tmpFile, reports)
 
 	if err != nil {
 		return err
@@ -158,49 +172,6 @@ func (s *service) GenerateSummaryReportFile(reportOpt ReportOption, dstDir strin
 	return nil
 }
 
-func getFilteredProxies(reportOpt ReportOption, proxies []Proxy) []Proxy {
-
-	if !reportOpt.StartDate.IsZero() || !reportOpt.EndDate.IsZero() {
-		var filteredProxies []Proxy
-
-		for _, v := range proxies {
-			if v.Date == reportOpt.StartDate || v.Date == reportOpt.EndDate || (v.Date.After(reportOpt.StartDate) && v.Date.Before(reportOpt.EndDate)) {
-				filteredProxies = append(filteredProxies, v)
-			}
-		}
-
-		return filteredProxies
-	}
-
-	return proxies
-}
-
-func getReportRemarks(proxy Proxy, source Source) Remark {
-	var remark Remark
-
-	if source.ID == "" {
-		remark.Discrepancies = append(remark.Discrepancies, "proxy data not found on source data")
-		return remark
-	}
-
-	if proxy.Amount != source.Amount {
-		remark.Discrepancies = append(remark.Discrepancies, fmt.Sprintf("proxy amount (%v) is different from source amount (%v)", proxy.Amount, source.Amount))
-	}
-
-	if proxy.Desc != source.Desc {
-		remark.Discrepancies = append(remark.Discrepancies, fmt.Sprintf("proxy description (%s) is different from source description (%s)", proxy.Desc, source.Desc))
-	}
-
-	proxyDate := proxy.Date.Format("2006-01-02")
-	sourceDate := source.Date.Format("2006-01-02")
-
-	if proxyDate != sourceDate {
-		remark.Discrepancies = append(remark.Discrepancies, fmt.Sprintf("proxy date (%s) is different from source date (%s)", proxyDate, sourceDate))
-	}
-
-	return remark
-}
-
 func (s *service) WriteReportFile(writer *csv.Writer, reports []Report) error {
 	export := NewCSVReportExport(reports)
 
@@ -215,10 +186,13 @@ func (s *service) WriteReportFile(writer *csv.Writer, reports []Report) error {
 	return nil
 }
 
-func (s *service) WriteSummaryReportFile(tmpFile *os.File, reports []Report) error {
-	export := NewTextSummaryReportExport(reports)
+func (s *service) WriteSummaryReportFile(reportOpt ReportOption, tmpFile *os.File, reports []Report) error {
+	export := NewTextSummaryReportExport(reportOpt, reports)
 
-	for _, v := range export.Headers {
+	tmpFile.WriteString("# RECONCILIATION REPORT SUMMARY \n")
+	tmpFile.WriteString("## QUERY \n")
+
+	for _, v := range export.Queries {
 		_, err := tmpFile.WriteString(fmt.Sprintf("%s \n", strings.Join(v, " ")))
 
 		if err != nil {
@@ -227,12 +201,21 @@ func (s *service) WriteSummaryReportFile(tmpFile *os.File, reports []Report) err
 	}
 
 	tmpFile.WriteString("\n")
-	tmpFile.WriteString("DISCREPANCIES \n")
-	tmpFile.WriteString("============== \n")
-	tmpFile.WriteString(fmt.Sprintf("%s \n", strings.Join(export.DiscrepanciesHeaders, " | ")))
+	tmpFile.WriteString("## SUMMARY \n")
 
-	for _, v := range export.DiscrepanciesValues {
-		_, err := tmpFile.WriteString(fmt.Sprintf("%s \n", strings.Join(v, " | ")))
+	for _, v := range export.Summaries {
+		_, err := tmpFile.WriteString(fmt.Sprintf("%s \n", strings.Join(v, " ")))
+
+		if err != nil {
+			return err
+		}
+	}
+
+	tmpFile.WriteString("\n")
+	tmpFile.WriteString("## DISCREPANCIES \n")
+
+	for _, v := range export.Discrepancies {
+		_, err := tmpFile.WriteString(fmt.Sprintf("%s \n", strings.Join(v, " ")))
 
 		if err != nil {
 			return err
@@ -256,4 +239,80 @@ func copyTempFileToDestinationFile(tmpFile *os.File, dstFile *os.File) error {
 	}
 
 	return nil
+}
+
+func getFilteredProxies(reportOpt ReportOption, proxies []Proxy) []Proxy {
+
+	if !reportOpt.StartDate.IsZero() || !reportOpt.EndDate.IsZero() {
+		var filteredProxies []Proxy
+
+		for _, v := range proxies {
+			if v.Date == reportOpt.StartDate || v.Date == reportOpt.EndDate || (v.Date.After(reportOpt.StartDate) && v.Date.Before(reportOpt.EndDate)) {
+				filteredProxies = append(filteredProxies, v)
+			}
+		}
+
+		return filteredProxies
+	}
+
+	return proxies
+}
+
+func getSorteredProxies(proxies []Proxy) []Proxy {
+	sort.Slice(proxies, func(i, j int) bool {
+		return proxies[i].Date.Before(proxies[j].Date)
+	})
+
+	return proxies
+}
+
+func getReportRemarks(proxy Proxy, source Source) []Remark {
+	var remarks []Remark
+
+	if source.ID == "" {
+		remarks = append(
+			remarks,
+			Remark{
+				Type:  TypeProxyNotFound,
+				Error: fmt.Errorf(ProxyNotFound),
+			},
+		)
+
+		return remarks
+	}
+
+	if proxy.Amount != source.Amount {
+		remarks = append(
+			remarks,
+			Remark{
+				Type:  TypeDiffProxyAmount,
+				Error: fmt.Errorf(DiffProxyAmount, proxy.Amount, source.Amount),
+			},
+		)
+	}
+
+	if proxy.Desc != source.Desc {
+		remarks = append(
+			remarks,
+			Remark{
+				Type:  TypeDiffProxyDesc,
+				Error: fmt.Errorf(DiffProxyDesc, proxy.Desc, source.Desc),
+			},
+		)
+	}
+
+	proxyDate := proxy.Date.Format("2006-01-02")
+	sourceDate := source.Date.Format("2006-01-02")
+
+	if proxyDate != sourceDate {
+		remarks = append(
+			remarks,
+			Remark{
+				Type:  TypeDiffProxyDate,
+				Error: fmt.Errorf(DiffProxyDate, proxyDate, sourceDate),
+			},
+		)
+	}
+
+	return remarks
 }

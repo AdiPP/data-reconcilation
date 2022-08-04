@@ -80,7 +80,8 @@ func reconcileReport(e exporting.Service) func(w http.ResponseWriter, r *http.Re
 
 func reconcileSummaryReport(e exporting.Service) func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	return func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-		reports, err := e.GetReportData(exporting.ReportOption{})
+		opt := exporting.ReportOption{}
+		reports, err := e.GetReportData(opt)
 
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -97,7 +98,7 @@ func reconcileSummaryReport(e exporting.Service) func(w http.ResponseWriter, r *
 		defer tmpFile.Close()
 		defer os.Remove(tmpFile.Name())
 
-		err = e.WriteSummaryReportFile(tmpFile, reports)
+		err = e.WriteSummaryReportFile(opt, tmpFile, reports)
 
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)

@@ -8,11 +8,12 @@ import (
 type Report struct {
 	Proxy   Proxy
 	Source  Source
-	Remarks Remark
+	Remarks []Remark
 }
 
 type Remark struct {
-	Discrepancies []string
+	Type  string
+	Error error
 }
 
 func (r *Report) Array() []string {
@@ -21,6 +22,16 @@ func (r *Report) Array() []string {
 		strconv.Itoa(r.Proxy.Amount),
 		r.Proxy.Desc,
 		r.Proxy.Date.Format("2006-01-02"),
-		strings.Join(r.Remarks.Discrepancies, "; "),
+		strings.Join(convertRemarksToArray(r.Remarks), "; "),
 	}
+}
+
+func convertRemarksToArray(remarks []Remark) []string {
+	var result []string
+
+	for _, v := range remarks {
+		result = append(result, v.Error.Error())
+	}
+
+	return result
 }

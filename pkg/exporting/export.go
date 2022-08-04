@@ -25,58 +25,123 @@ func NewCSVReportExport(reports []Report) CSVReportExport {
 }
 
 type TextSummaryReportExport struct {
-	Headers              [][]string
-	DiscrepanciesHeaders []string
-	DiscrepanciesValues  [][]string
+	Queries       [][]string
+	Summaries     [][]string
+	Discrepancies [][]string
 }
 
-func NewTextSummaryReportExport(reports []Report) TextSummaryReportExport {
-	headers := getTextSummaryReportExportHeaders(reports)
-	discrepanciesHeaders := []string{"ID", "Amount", "Description", "Date", "Remarks"}
-	discrepanciesValues := getTextSummaryReportExportDiscrepanciesValues(reports)
+func NewTextSummaryReportExport(reportOpt ReportOption, reports []Report) TextSummaryReportExport {
+	queries := getTextSummaryReportExportQueries(reportOpt, reports)
+	summaries := getTextSummaryReportExportSummaries(reports)
+	discrepancies := getTextSummaryReportExportDiscrepancies(reports)
 
 	return TextSummaryReportExport{
-		Headers:              headers,
-		DiscrepanciesHeaders: discrepanciesHeaders,
-		DiscrepanciesValues:  discrepanciesValues,
+		Queries:       queries,
+		Summaries:     summaries,
+		Discrepancies: discrepancies,
 	}
 }
 
-func getTextSummaryReportExportHeaders(reports []Report) [][]string {
-	var headers [][]string
+func getTextSummaryReportExportQueries(reportOpt ReportOption, reports []Report) [][]string {
+	var queries [][]string
+	var startDate string
+	var endDate string
 
-	headers = append(
-		headers,
+	if !reportOpt.StartDate.IsZero() {
+		startDate = reportOpt.StartDate.Format("2006-01-02")
+	}
+
+	if !reportOpt.EndDate.IsZero() {
+		endDate = reportOpt.EndDate.Format("2006-01-02")
+	}
+
+	queries = append(
+		queries,
 		[]string{
-			"REPORT DATE RANGE:",
-			getSummaryReportDateRange(reports),
+			"Start Date:",
+			startDate,
 		},
 	)
 
-	headers = append(
-		headers,
+	queries = append(
+		queries,
 		[]string{
-			"TOTAL SOURCE RECORDS PROCESSED:",
-			getSummaryTotalSourceRecordsProcessed(reports),
+			"End Date:",
+			endDate,
 		},
 	)
 
-	return headers
+	return queries
 }
 
-func getTextSummaryReportExportDiscrepanciesValues(reports []Report) [][]string {
-	var values [][]string
+func getTextSummaryReportExportSummaries(reports []Report) [][]string {
+	var summaries [][]string
+
+	summaries = append(
+		summaries,
+		[]string{
+			"Proxy Record Date Range:",
+			getProxyRecordsDateRange(reports),
+		},
+	)
+
+	summaries = append(
+		summaries,
+		[]string{
+			"Total Source Records Processed:",
+			getTotalSourceRecordsFound(reports),
+		},
+	)
+
+	discrepancyRecordsCount := 0
 
 	for _, v := range reports {
-		if len(v.Remarks.Discrepancies) != 0 {
-			values = append(values, v.Array())
+		if len(v.Remarks) != 0 {
+			discrepancyRecordsCount++
 		}
 	}
 
-	return values
+	summaries = append(
+		summaries,
+		[]string{
+			"Total Discrepancy Records:",
+			strconv.Itoa(discrepancyRecordsCount),
+		},
+	)
+
+	return summaries
 }
 
-func getSummaryReportDateRange(reports []Report) string {
+func getTextSummaryReportExportDiscrepancies(reports []Report) [][]string {
+	var result [][]string
+
+	discrepancies := make(map[string]int)
+
+	for _, v := range reports {
+		for _, v := range v.Remarks {
+
+			if val, ok := discrepancies[v.Type]; ok {
+				discrepancies[v.Type] = val + 1
+			} else {
+				discrepancies[v.Type] = 1
+			}
+		}
+	}
+
+	for key, v := range discrepancies {
+		result = append(
+			result,
+			[]string{
+				key + ":",
+				strconv.Itoa(v),
+			},
+		)
+	}
+
+	return result
+}
+
+func getProxyRecordsDateRange(reports []Report) string {
 	dates := []time.Time{}
 
 	for _, v := range reports {
@@ -94,7 +159,7 @@ func getSummaryReportDateRange(reports []Report) string {
 	)
 }
 
-func getSummaryTotalSourceRecordsProcessed(reports []Report) string {
+func getTotalSourceRecordsFound(reports []Report) string {
 	var total int
 
 	for _, v := range reports {
