@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	FileDataDir = "../../resources/"
+	FileDataDir = "./resources/"
 )
 
 type CSVProxy struct {
