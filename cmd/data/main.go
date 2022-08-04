@@ -2,13 +2,38 @@ package main
 
 import (
 	"encoding/csv"
+	"fmt"
 	"io/ioutil"
 	"os"
+	"strconv"
 	"time"
+
+	"github.com/AdiPP/reconciliation/pkg/exporting"
 )
 
-func PopulateProxies() {
-	defaultProxies := []Proxy{
+const (
+	FileDataDir = "../../resources/"
+)
+
+type CSVProxy struct {
+	Headers []string
+	Values  [][]string
+}
+
+type CSVSource struct {
+	Headers []string
+	Values  [][]string
+}
+
+func main() {
+	populateProxies()
+	populateSources()
+
+	fmt.Println("populate data run successfully")
+}
+
+func populateProxies() {
+	defaultProxies := []exporting.Proxy{
 		{
 			ID:     "zoUr",
 			Amount: 24,
@@ -76,8 +101,8 @@ func PopulateProxies() {
 	}
 }
 
-func PopulateSources() {
-	defaultSources := []Source{
+func populateSources() {
+	defaultSources := []exporting.Source{
 		{
 			ID:     "zoUr",
 			Amount: 24,
@@ -149,7 +174,7 @@ func getDate(dateString string) time.Time {
 	return date
 }
 
-func saveProxies(proxies []Proxy) error {
+func saveProxies(proxies []exporting.Proxy) error {
 	tmpFile, err := ioutil.TempFile("", "proxy-sample-*.csv")
 
 	if err != nil {
@@ -163,7 +188,7 @@ func saveProxies(proxies []Proxy) error {
 
 	defer writer.Flush()
 
-	CSVReport := NewCSVProxy(proxies)
+	CSVReport := newCSVProxy(proxies)
 
 	if err := writer.Write(CSVReport.Headers); err != nil {
 		return err
@@ -173,7 +198,7 @@ func saveProxies(proxies []Proxy) error {
 		return err
 	}
 
-	dst, err := os.Create(FileDataLocation + "proxy.csv")
+	dst, err := os.Create(FileDataDir + "proxy.csv")
 
 	if err != nil {
 		return err
@@ -196,7 +221,7 @@ func saveProxies(proxies []Proxy) error {
 	return nil
 }
 
-func saveSources(sources []Source) error {
+func saveSources(sources []exporting.Source) error {
 	tmpFile, err := ioutil.TempFile("", "source-sample-*.csv")
 
 	if err != nil {
@@ -210,7 +235,7 @@ func saveSources(sources []Source) error {
 
 	defer writer.Flush()
 
-	CSVReport := NewCSVSource(sources)
+	CSVReport := newCSVSource(sources)
 
 	if err := writer.Write(CSVReport.Headers); err != nil {
 		return err
@@ -220,7 +245,7 @@ func saveSources(sources []Source) error {
 		return err
 	}
 
-	dst, err := os.Create(FileDataLocation + "source.csv")
+	dst, err := os.Create(FileDataDir + "source.csv")
 
 	if err != nil {
 		return err
@@ -241,4 +266,44 @@ func saveSources(sources []Source) error {
 	}
 
 	return nil
+}
+
+func newCSVProxy(proxies []exporting.Proxy) CSVProxy {
+	var CSVProxy CSVProxy
+
+	CSVProxy.Headers = []string{"Amt", "Descr", "Date", "ID"}
+
+	for _, v := range proxies {
+		CSVProxy.Values = append(
+			CSVProxy.Values,
+			[]string{
+				strconv.Itoa(v.Amount),
+				v.Desc,
+				v.Date.Format("2006-01-02"),
+				v.ID,
+			},
+		)
+	}
+
+	return CSVProxy
+}
+
+func newCSVSource(sources []exporting.Source) CSVSource {
+	var CSVSource CSVSource
+
+	CSVSource.Headers = []string{"Date", "ID", "Amount", "Description"}
+
+	for _, v := range sources {
+		CSVSource.Values = append(
+			CSVSource.Values,
+			[]string{
+				v.Date.Format("2006-01-02"),
+				v.ID,
+				strconv.Itoa(v.Amount),
+				v.Desc,
+			},
+		)
+	}
+
+	return CSVSource
 }

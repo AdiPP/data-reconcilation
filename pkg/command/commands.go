@@ -1,12 +1,32 @@
-package main
+package command
 
 import (
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
+	"github.com/AdiPP/reconciliation/pkg/exporting"
+	"github.com/AdiPP/reconciliation/pkg/storage/memory"
 	"github.com/spf13/cobra"
 )
+
+var rootCmd = &cobra.Command{
+	Use:   "reconciliation",
+	Short: "",
+	Long:  ``,
+}
+
+func ExecuteConsole() {
+	err := rootCmd.Execute()
+	if err != nil {
+		os.Exit(1)
+	}
+}
+
+func init() {
+	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+}
 
 var reconcileCmd = &cobra.Command{
 	Use:   "reconcile {proxyfilepath} {sourcefilepath} {destinationdir} {startdate} {enddate}",
@@ -38,9 +58,9 @@ var reconcileCmd = &cobra.Command{
 			panic(err.Error())
 		}
 
-		var err error
+		var exporter exporting.Service
 
-		db, err = NewStorageFile(
+		s, err := memory.NewStorageFromFile(
 			proxyfilepath,
 			sourcefilepath,
 		)
@@ -49,25 +69,27 @@ var reconcileCmd = &cobra.Command{
 			panic(err.Error())
 		}
 
-		reconOpt, err := getReconcileOption(startdatestring, enddatestring)
+		exporter = exporting.NewService(s)
+
+		reportOpt, err := getReconcileOption(startdatestring, enddatestring)
 
 		if err != nil {
 			panic(err.Error())
 		}
 
-		err = ReconcileReportFile(reconOpt, destinationdir)
+		err = exporter.GenerateReportFile(reportOpt, destinationdir)
 
 		if err != nil {
 			panic(err.Error())
 		}
 
-		err = ReconcileReportSummaryFile(reconOpt, destinationdir)
+		err = exporter.GenerateSummaryReportFile(reportOpt, destinationdir)
 
 		if err != nil {
 			panic(err.Error())
 		}
 
-		fmt.Println("succesfully")
+		fmt.Println("reconciliation run successfully")
 	},
 }
 
@@ -75,7 +97,7 @@ func init() {
 	rootCmd.AddCommand(reconcileCmd)
 }
 
-func getReconcileOption(startdatestring string, enddatestring string) (ReconcileOption, error) {
+func getReconcileOption(startdatestring string, enddatestring string) (exporting.ReportOption, error) {
 	var startdate time.Time
 	var enddate time.Time
 
@@ -83,7 +105,7 @@ func getReconcileOption(startdatestring string, enddatestring string) (Reconcile
 		date, err := convertDateStringToDate(startdatestring)
 
 		if err != nil {
-			return ReconcileOption{}, err
+			return exporting.ReportOption{}, err
 		}
 
 		startdate = date
@@ -93,13 +115,13 @@ func getReconcileOption(startdatestring string, enddatestring string) (Reconcile
 		date, err := convertDateStringToDate(enddatestring)
 
 		if err != nil {
-			return ReconcileOption{}, err
+			return exporting.ReportOption{}, err
 		}
 
 		enddate = date
 	}
 
-	return ReconcileOption{
+	return exporting.ReportOption{
 		StartDate: startdate,
 		EndDate:   enddate,
 	}, nil

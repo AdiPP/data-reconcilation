@@ -1,4 +1,4 @@
-package main
+package exporting
 
 import (
 	"encoding/csv"
@@ -9,22 +9,46 @@ import (
 	"time"
 )
 
-type ReconcileOption struct {
+// Todo-Adi: Add errors const
+
+type ReportOption struct {
 	StartDate time.Time
 	EndDate   time.Time
 }
 
-func Reconcile(opt ReconcileOption) ([]Report, error) {
-	proxies, err := getFilteredProxies(opt)
+type Repository interface {
+	FindAllProxies() ([]Proxy, error)
+	FindSourceByID(ID string) (Source, error)
+}
 
+type Service interface {
+	GetReportData(reportOpt ReportOption) ([]Report, error)
+	GenerateReportFile(reportOpt ReportOption, dstDir string) error
+	GenerateSummaryReportFile(reportOpt ReportOption, dstDir string) error
+	WriteReportFile(writer *csv.Writer, reports []Report) error
+	WriteSummaryReportFile(tmpFile *os.File, reports []Report) error
+}
+
+type service struct {
+	r Repository
+}
+
+func NewService(r Repository) Service {
+	return &service{r}
+}
+
+func (s *service) GetReportData(reportOpt ReportOption) ([]Report, error) {
+	proxies, err := s.r.FindAllProxies()
 	if err != nil {
 		return nil, err
 	}
 
+	filteredProxies := getFilteredProxies(reportOpt, proxies)
+
 	var reports []Report
 
-	for _, v := range proxies {
-		source, err := db.FindSourceByID(v.ID)
+	for _, v := range filteredProxies {
+		source, err := s.r.FindSourceByID(v.ID)
 
 		if err != nil {
 			source = Source{}
@@ -33,22 +57,19 @@ func Reconcile(opt ReconcileOption) ([]Report, error) {
 		reports = append(reports, Report{
 			Proxy:   v,
 			Source:  source,
-			Remarks: getRemarks(v, source),
+			Remarks: getReportRemarks(v, source),
 		})
 	}
 
 	return reports, nil
 }
 
-func ReconcileReportFile(opt ReconcileOption, destinationdir string) error {
-	var err error
-
-	reports, err := Reconcile(opt)
+func (s *service) GenerateReportFile(reportOpt ReportOption, dstDir string) error {
+	reports, err := s.GetReportData(reportOpt)
 
 	if err != nil {
 		return err
 	}
-
 	tmpFile, err := ioutil.TempFile("", "reports-*.csv")
 
 	if err != nil {
@@ -62,7 +83,7 @@ func ReconcileReportFile(opt ReconcileOption, destinationdir string) error {
 
 	defer writer.Flush()
 
-	err = writeReconcileReportFile(writer, reports)
+	err = s.WriteReportFile(writer, reports)
 
 	if err != nil {
 		return err
@@ -74,7 +95,8 @@ func ReconcileReportFile(opt ReconcileOption, destinationdir string) error {
 		now.Format("20060102"),
 		now.Format("150405"),
 	)
-	dstFile, err := os.Create(destinationdir + filename)
+
+	dstFile, err := os.Create(dstDir + filename)
 
 	if err != nil {
 		return err
@@ -91,46 +113,8 @@ func ReconcileReportFile(opt ReconcileOption, destinationdir string) error {
 	return nil
 }
 
-func ReconcileReportFileByte(opt ReconcileOption) ([]byte, error) {
-	var fileBytes []byte
-	var err error
-
-	reports, err := Reconcile(opt)
-
-	if err != nil {
-		return nil, err
-	}
-
-	tmpFile, err := os.CreateTemp(os.TempDir(), "reports-*.csv")
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer tmpFile.Close()
-	defer os.Remove(tmpFile.Name())
-
-	writer := csv.NewWriter(tmpFile)
-
-	defer writer.Flush()
-
-	err = writeReconcileReportFile(writer, reports)
-
-	if err != nil {
-		return nil, err
-	}
-
-	fileBytes, err = ioutil.ReadFile(tmpFile.Name())
-
-	if err != nil {
-		return nil, err
-	}
-
-	return fileBytes, nil
-}
-
-func ReconcileReportSummaryFile(opt ReconcileOption, destinationdir string) error {
-	reports, err := Reconcile(opt)
+func (s *service) GenerateSummaryReportFile(reportOpt ReportOption, dstDir string) error {
+	reports, err := s.GetReportData(reportOpt)
 
 	if err != nil {
 		return err
@@ -145,7 +129,7 @@ func ReconcileReportSummaryFile(opt ReconcileOption, destinationdir string) erro
 	defer tmpFile.Close()
 	defer os.Remove(tmpFile.Name())
 
-	err = writeReconcileSummaryFile(tmpFile, reports)
+	err = s.WriteSummaryReportFile(tmpFile, reports)
 
 	if err != nil {
 		return err
@@ -157,7 +141,7 @@ func ReconcileReportSummaryFile(opt ReconcileOption, destinationdir string) erro
 		now.Format("20060102"),
 		now.Format("150405"),
 	)
-	dstFile, err := os.Create(destinationdir + filename)
+	dstFile, err := os.Create(dstDir + filename)
 
 	if err != nil {
 		return err
@@ -174,61 +158,24 @@ func ReconcileReportSummaryFile(opt ReconcileOption, destinationdir string) erro
 	return nil
 }
 
-func ReconcileReportSummaryFileByte(opt ReconcileOption) ([]byte, error) {
-	var fileBytes []byte
-	reports, err := Reconcile(opt)
+func getFilteredProxies(reportOpt ReportOption, proxies []Proxy) []Proxy {
 
-	if err != nil {
-		return nil, err
-	}
-
-	tmpFile, err := os.CreateTemp(os.TempDir(), "reports-*.txt")
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer tmpFile.Close()
-	defer os.Remove(tmpFile.Name())
-
-	err = writeReconcileSummaryFile(tmpFile, reports)
-
-	if err != nil {
-		return nil, err
-	}
-
-	fileBytes, err = ioutil.ReadFile(tmpFile.Name())
-
-	if err != nil {
-		return nil, err
-	}
-
-	return fileBytes, nil
-}
-
-func getFilteredProxies(opt ReconcileOption) ([]Proxy, error) {
-	proxies, err := db.FindAllProxies()
-
-	if err != nil {
-		return nil, err
-	}
-
-	if !opt.StartDate.IsZero() || !opt.EndDate.IsZero() {
+	if !reportOpt.StartDate.IsZero() || !reportOpt.EndDate.IsZero() {
 		var filteredProxies []Proxy
 
 		for _, v := range proxies {
-			if v.Date == opt.StartDate || v.Date == opt.EndDate || (v.Date.After(opt.StartDate) && v.Date.Before(opt.EndDate)) {
+			if v.Date == reportOpt.StartDate || v.Date == reportOpt.EndDate || (v.Date.After(reportOpt.StartDate) && v.Date.Before(reportOpt.EndDate)) {
 				filteredProxies = append(filteredProxies, v)
 			}
 		}
 
-		return filteredProxies, nil
+		return filteredProxies
 	}
 
-	return proxies, nil
+	return proxies
 }
 
-func getRemarks(proxy Proxy, source Source) Remark {
+func getReportRemarks(proxy Proxy, source Source) Remark {
 	var remark Remark
 
 	if source.ID == "" {
@@ -254,24 +201,24 @@ func getRemarks(proxy Proxy, source Source) Remark {
 	return remark
 }
 
-func writeReconcileReportFile(writer *csv.Writer, reports []Report) error {
-	CSVReport := NewCSVReport(reports)
+func (s *service) WriteReportFile(writer *csv.Writer, reports []Report) error {
+	export := NewCSVReportExport(reports)
 
-	if err := writer.Write(CSVReport.Headers); err != nil {
+	if err := writer.Write(export.Headers); err != nil {
 		return err
 	}
 
-	if err := writer.WriteAll(CSVReport.Values); err != nil {
+	if err := writer.WriteAll(export.Values); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func writeReconcileSummaryFile(tmpFile *os.File, reports []Report) error {
-	summaryReport := NewSummaryReport(reports)
+func (s *service) WriteSummaryReportFile(tmpFile *os.File, reports []Report) error {
+	export := NewTextSummaryReportExport(reports)
 
-	for _, v := range summaryReport.Headers {
+	for _, v := range export.Headers {
 		_, err := tmpFile.WriteString(fmt.Sprintf("%s \n", strings.Join(v, " ")))
 
 		if err != nil {
@@ -282,9 +229,9 @@ func writeReconcileSummaryFile(tmpFile *os.File, reports []Report) error {
 	tmpFile.WriteString("\n")
 	tmpFile.WriteString("DISCREPANCIES \n")
 	tmpFile.WriteString("============== \n")
-	tmpFile.WriteString(fmt.Sprintf("%s \n", strings.Join(summaryReport.DiscrepanciesHeaders, " | ")))
+	tmpFile.WriteString(fmt.Sprintf("%s \n", strings.Join(export.DiscrepanciesHeaders, " | ")))
 
-	for _, v := range summaryReport.DiscrepanciesValues {
+	for _, v := range export.DiscrepanciesValues {
 		_, err := tmpFile.WriteString(fmt.Sprintf("%s \n", strings.Join(v, " | ")))
 
 		if err != nil {

@@ -1,4 +1,4 @@
-package main
+package memory
 
 import (
 	"encoding/csv"
@@ -6,27 +6,21 @@ import (
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/AdiPP/reconciliation/pkg/exporting"
 )
 
-const (
-	FileDataLocation = "./data/"
-)
-
-type StorageFile struct {
-	proxypath  string
-	sourcepath string
-	proxys     []Proxy
-	sources    []Source
+type Storage struct {
+	proxies []Proxy
+	sources []Source
 }
 
-func NewStorageFile(proxyPath string, sourcePath string) (*StorageFile, error) {
+func NewStorageFromFile(proxypath string, sourcepath string) (*Storage, error) {
 	var err error
 
-	stg := new(StorageFile)
-	stg.proxypath = proxyPath
-	stg.sourcepath = sourcePath
+	stg := new(Storage)
 
-	prxyRecords, err := getRecords(stg.proxypath)
+	prxyRecords, err := getRecords(proxypath)
 
 	if err != nil {
 		return nil, err
@@ -38,9 +32,9 @@ func NewStorageFile(proxyPath string, sourcePath string) (*StorageFile, error) {
 		return nil, err
 	}
 
-	stg.proxys = prxys
+	stg.proxies = prxys
 
-	srcRecords, err := getRecords(stg.sourcepath)
+	srcRecords, err := getRecords(sourcepath)
 
 	if err != nil {
 		return nil, err
@@ -57,10 +51,10 @@ func NewStorageFile(proxyPath string, sourcePath string) (*StorageFile, error) {
 	return stg, nil
 }
 
-func (s *StorageFile) FindProxyByID(ID string) (Proxy, error) {
+func (s *Storage) FindProxyByID(ID string) (Proxy, error) {
 	var proxy Proxy
 
-	for _, v := range s.proxys {
+	for _, v := range s.proxies {
 		if v.ID == ID {
 			return v, nil
 		}
@@ -69,24 +63,42 @@ func (s *StorageFile) FindProxyByID(ID string) (Proxy, error) {
 	return proxy, nil
 }
 
-func (s *StorageFile) FindAllSources() ([]Source, error) {
+func (s *Storage) FindAllSources() ([]Source, error) {
 	return s.sources, nil
 }
 
-func (s *StorageFile) FindSourceByID(ID string) (Source, error) {
-	var source Source
+func (s *Storage) FindSourceByID(ID string) (exporting.Source, error) {
+	var source exporting.Source
 
 	for _, v := range s.sources {
 		if v.ID == ID {
-			return v, nil
+			source.ID = v.ID
+			source.Amount = v.Amount
+			source.Desc = v.Desc
+			source.Date = v.Date
+
+			return source, nil
 		}
 	}
 
-	return source, nil
+	return source, errors.New("source not found")
 }
 
-func (s *StorageFile) FindAllProxies() ([]Proxy, error) {
-	return s.proxys, nil
+func (s *Storage) FindAllProxies() ([]exporting.Proxy, error) {
+	var proxies []exporting.Proxy
+
+	for _, v := range s.proxies {
+		proxy := exporting.Proxy{
+			ID:     v.ID,
+			Amount: v.Amount,
+			Desc:   v.Desc,
+			Date:   v.Date,
+		}
+
+		proxies = append(proxies, proxy)
+	}
+
+	return proxies, nil
 }
 
 func getRecords(path string) ([][]string, error) {
