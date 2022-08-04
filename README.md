@@ -51,8 +51,8 @@ To perform reconciliation and generate reports, please run the following command
 | `proxyfilepath`  | pathtofile | yes      | Path to proxy file (eg: `./proxy.csv`).     |
 | `sourcefilepath` | pathtofile | yes      | Path to source file (eg: `./source.csv`).   |
 | `destinationdir` | pathttodir | yes      | Path to destination dir (eg: `./result/`).  |
-| `startdate`      | date       | no       | Start date filter. Format in: `DD-MM-YYYY`. |
-| `enddate`        | date       | no       | End date filter. Format in: `DD-MM-YYYY`.   |
+| `startdate`      | date       | no       | Start date filter. Format in: `YYYY-MM-DD`. |
+| `enddate`        | date       | no       | End date filter. Format in: `YYYY-MM-DD`.   |
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
