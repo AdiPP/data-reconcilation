@@ -2,6 +2,7 @@ package exporting
 
 import (
 	"encoding/csv"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -24,6 +25,8 @@ var (
 	DiffProxyAmount = "proxy amount (%v) is different from source amount (%v)"
 	DiffProxyDesc   = "proxy description (%s) is different from source description (%s)"
 	DiffProxyDate   = "proxy date (%s) is different from source date (%s)"
+
+	ErrNoProxyRecordsFound = "no proxy records found"
 )
 
 type ReportOption struct {
@@ -91,6 +94,11 @@ func (s *service) GetReportData(reportOpt ReportOption) ([]Report, error) {
 	}
 
 	filteredProxies := getFilteredProxies(reportOpt, proxies)
+
+	if len(filteredProxies) == 0 {
+		return nil, errors.New(ErrNoProxyRecordsFound)
+	}
+
 	sortedProxies := getSorteredProxies(filteredProxies)
 
 	var reports []Report
